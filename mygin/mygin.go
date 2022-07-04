@@ -11,14 +11,11 @@ type HandlerFunc func(*Context)
 
 type Engine struct {
 	*RouterGroup
-	router *router
-	groups []*RouterGroup // 存储所有的分组
 }
 
 func New() *Engine {
-	engine := &Engine{router: newRouter()}
-	engine.RouterGroup = &RouterGroup{engine: engine}
-	engine.groups = []*RouterGroup{engine.RouterGroup}
+	engine := &Engine{}
+	engine.RouterGroup = &RouterGroup{router: newRouter()}
 	return engine
 }
 
@@ -44,27 +41,23 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type RouterGroup struct {
-	prefix      string
+	prefix      string        // 支持嵌套
 	middlewares []HandlerFunc // 支持中间件
-	parent      *RouterGroup  // 支持嵌套
-	engine      *Engine       // 所有组共享一个引擎实例
+	router      *router       // 所有组共享一个引擎实例
 }
 
 func (group *RouterGroup) Group(prefix string) *RouterGroup {
-	engine := group.engine
 	newGroup := &RouterGroup{
 		prefix: group.prefix + prefix,
-		parent: group,
-		engine: engine,
+		router: group.router,
 	}
-	engine.groups = append(engine.groups, newGroup)
 	return newGroup
 }
 
 func (group *RouterGroup) addRoute(method, comp string, handler HandlerFunc) {
 	pattern := group.prefix + comp
 	log.Printf("Route %4s - %s", method, pattern)
-	group.engine.router.addRoute(method, pattern, handler)
+	group.router.addRoute(method, pattern, handler)
 }
 
 func (group *RouterGroup) Get(pattern string, handler HandlerFunc) {

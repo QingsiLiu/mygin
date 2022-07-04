@@ -18,7 +18,6 @@ func main() {
 		})
 
 		v1.Get("/hello", func(c *mygin.Context) {
-			// expect /hello?name=geektutu
 			c.String(http.StatusOK, "hello %s, you're at %s\n", c.Query("name"), c.Path)
 		})
 	}
@@ -26,7 +25,6 @@ func main() {
 	v2 := r.Group("/v2")
 	{
 		v2.Get("/hello/:name", func(c *mygin.Context) {
-			// expect /hello/geektutu
 			c.String(http.StatusOK, "hello %s, you're at %s\n", c.Param("name"), c.Path)
 		})
 		v2.Post("/login", func(c *mygin.Context) {
