@@ -3,19 +3,23 @@
 package mygin
 
 import (
-	"log"
 	"net/http"
+	"strings"
 )
 
 type HandlerFunc func(*Context)
 
 type Engine struct {
 	*RouterGroup
+	groups []*RouterGroup
 }
 
 func New() *Engine {
-	engine := &Engine{}
-	engine.RouterGroup = &RouterGroup{router: newRouter()}
+	routerGroup := newRouterGroup()
+	engine := &Engine{
+		RouterGroup: routerGroup,
+		groups:      []*RouterGroup{routerGroup},
+	}
 	return engine
 }
 
@@ -28,42 +32,27 @@ func (e *Engine) Post(pattern string, handler HandlerFunc) {
 }
 
 func (e *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
-	e.router.addRoute(method, pattern, handler)
+	e.RouterGroup.router.addRoute(method, pattern, handler)
 }
 
 func (e *Engine) Run(addr string) (err error) {
 	return http.ListenAndServe(addr, e)
 }
 
+func (e *Engine) Group(prefix string) *RouterGroup {
+	group := e.RouterGroup.Group(prefix)
+	e.groups = append(e.groups, group)
+	return group
+}
+
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := newContext(w, r)
-	e.router.handle(c)
-}
-
-type RouterGroup struct {
-	prefix      string        // 支持嵌套
-	middlewares []HandlerFunc // 支持中间件
-	router      *router       // 所有组共享一个引擎实例
-}
-
-func (group *RouterGroup) Group(prefix string) *RouterGroup {
-	newGroup := &RouterGroup{
-		prefix: group.prefix + prefix,
-		router: group.router,
+	var middlewares []HandlerFunc
+	for _, group := range e.groups {
+		if strings.HasPrefix(r.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
 	}
-	return newGroup
-}
-
-func (group *RouterGroup) addRoute(method, comp string, handler HandlerFunc) {
-	pattern := group.prefix + comp
-	log.Printf("Route %4s - %s", method, pattern)
-	group.router.addRoute(method, pattern, handler)
-}
-
-func (group *RouterGroup) Get(pattern string, handler HandlerFunc) {
-	group.addRoute("GET", pattern, handler)
-}
-
-func (group *RouterGroup) Post(pattern string, handler HandlerFunc) {
-	group.addRoute("POST", pattern, handler)
+	c := newContext(w, r)
+	c.handlers = middlewares
+	e.router.handle(c)
 }
